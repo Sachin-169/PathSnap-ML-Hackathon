@@ -221,3 +221,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local-only hackathon inputs and platform metadata
+.DS_Store
+/hackathon_materials/
+*.track
+*.nodes
+*.arcs
+*.route
