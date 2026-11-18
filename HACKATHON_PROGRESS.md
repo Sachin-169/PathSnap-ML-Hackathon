@@ -14,12 +14,18 @@
 - Checkpoint 9: Added a standard-library automated test suite using synthetic graph and trip fixtures.
 - Checkpoint 10: Documented the HMM math, data contract, configuration, Member 4 call/output, limitations, and integration tasks.
 - Added ignore rules for local hackathon archives, raw trip data files, and macOS metadata.
+- Post-merge integration: Added `build_map_matching_input` for current Member 1 DataFrame schemas and flat candidate rows; exported it as a public API and documented per-trip use and the optional calibrated-probability input.
+- Added synthetic adapter tests for the current field mappings, missing candidate observations, probability row alignment, DataFrame node indexes, and invalid input handling.
 
 ### Pending
-- None.
+- Member 2: persist the chosen final model and provide an inference path that calculates the same feature columns for unlabeled candidate rows; then supply aligned calibrated probabilities if the HMM should use the model emission.
+- Member 4: add the API/UI and connect it to the per-trip adapter and `match_trip` interface.
+- End-to-end: validate against the final merged interfaces and an allowed held-out partition after those pieces are available.
 
 ### Interface status
-- The repository currently contains no Member 1 candidate-generation or Member 4 API code. The structures are a provisional contract and will be documented for integration review.
+- Current Member 1 preprocessing code is present and its GPS, node, road arc, and candidate columns are supported by `build_map_matching_input`. The adapter consumes one trip at a time and keeps node/arc IDs intact.
+- Member 2 training code and CV results are present, but no saved final estimator or unlabeled inference feature path is present. The adapter's optional classifier probability argument is ready once an aligned probability vector is available.
+- Member 4 API/UI implementation is not present yet. The stable HMM call is `match_trip(build_map_matching_input(...))`.
 
 ### Validation
 - Checkpoint 1 import/structure smoke check: passed using the public data structures.
@@ -30,5 +36,5 @@
 - Checkpoint 6 backtracking checks: passed (known best path, no-path behavior, tie selection, and repeated-arc collapse).
 - Checkpoint 7 synthetic trip checks: passed (connected path, long timestamp gap, missing candidates, and disconnected roads).
 - Checkpoint 8 edge-case checks: passed (empty and single-point trips, missing candidates, invalid observation values, graph/candidate mismatches, and invalid configuration values).
-- Checkpoint 9 automated tests: passed: 17 synthetic unit tests via `python3 -m unittest discover -s tests -v`.
-- Checkpoint 10 validation: passed 17 automated tests, compile checks, public-export checks, and conditional-transition normalization.
+- Checkpoints 1–10 prior validation: 17 synthetic unit tests passed, with compile checks, public-export checks, and conditional-transition normalization.
+- Post-merge adapter validation: run the full suite after integration changes; results are recorded with the integration checkpoint commit.
