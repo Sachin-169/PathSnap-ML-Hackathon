@@ -13,6 +13,7 @@ from .probabilities import (
     transition_log_probability,
 )
 from .transitions import candidate_transition_probability, transition_probability
+from .viterbi import ViterbiLattice, viterbi_forward
 from .types import (
     CandidateState,
     GPSObservation,
@@ -47,4 +48,6 @@ __all__ = [
     "logsumexp",
     "normalize_log_probabilities",
     "transition_log_probability",
+    "ViterbiLattice",
+    "viterbi_forward",
 ]
