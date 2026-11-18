@@ -3,6 +3,7 @@
 from .emissions import emission_probability, gaussian_emission_probability
 from .reconstruction import collapse_consecutive_arc_ids, reconstruct_arc_ids
 from .network import RoadNetworkRouter, haversine_distance_m
+from .matcher import match_trip
 from .probabilities import (
     candidate_transition_log_probability,
     emission_log_probability,
@@ -33,6 +34,8 @@ __all__ = [
     "MapMatchingConfig",
     "MapMatchingInput",
     "MapMatchingResult",
+    "match_trip",
+    "match_trip",
     "RoadArc",
     "RoadNetwork",
     "RoadNode",

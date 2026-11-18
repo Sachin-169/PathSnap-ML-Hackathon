@@ -89,3 +89,4 @@ class MapMatchingResult:
     route_arc_ids: Sequence[int]
     log_probability: float | None
     diagnostics: Sequence[str] = field(default_factory=tuple)
+    segment_ids: Sequence[int | None] = field(default_factory=tuple)
