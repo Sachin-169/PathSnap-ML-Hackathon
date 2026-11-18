@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from numbers import Real
 
 from .network import RoadNetworkRouter
 from .types import CandidateState
@@ -18,6 +19,8 @@ def transition_probability(
     tolerated disagreement and should be selected on development trips.
     """
     values = (network_distance_m, gps_displacement_m, beta_m)
+    if any(isinstance(value, bool) or not isinstance(value, Real) for value in values):
+        raise ValueError("transition distances and beta_m must be real numbers")
     if not all(math.isfinite(value) for value in values):
         raise ValueError("transition distances and beta_m must be finite")
     if network_distance_m < 0 or gps_displacement_m < 0:

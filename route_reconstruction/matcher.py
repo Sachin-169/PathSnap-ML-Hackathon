@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from numbers import Real
 from typing import Sequence
 
 from .network import RoadNetworkRouter, haversine_distance_m
@@ -15,6 +16,7 @@ from .reconstruction import reconstruct_arc_ids
 from .types import (
     CandidateState,
     GPSObservation,
+    RoadNetwork,
     MapMatchingConfig,
     MapMatchingInput,
     MapMatchingResult,
@@ -24,7 +26,11 @@ from .viterbi import viterbi_backtrack, viterbi_forward
 
 def _valid_observation(observation: GPSObservation) -> bool:
     values = (observation.timestamp_s, observation.longitude, observation.latitude)
-    if any(value is None or not math.isfinite(value) for value in values):
+    if any(
+        value is None or isinstance(value, bool) or not isinstance(value, Real)
+        or not math.isfinite(value)
+        for value in values
+    ):
         return False
     assert observation.longitude is not None and observation.latitude is not None
     return (
@@ -96,10 +102,28 @@ def match_trip(
     observation-aligned output. Long time gaps and infeasible transitions start
     a new independent Viterbi segment and are recorded in ``diagnostics``.
     """
+    if not isinstance(trip, MapMatchingInput):
+        raise TypeError("trip must be a MapMatchingInput")
+    if not isinstance(config, MapMatchingConfig):
+        raise TypeError("config must be a MapMatchingConfig")
     observations = trip.observations
     candidates = trip.candidates_by_observation
     if len(observations) != len(candidates):
         raise ValueError("one candidate row is required for each observation")
+    if not isinstance(trip.network, RoadNetwork):
+        raise TypeError("network must be a RoadNetwork")
+    if not observations:
+        return MapMatchingResult((), (), None, (), ())
+    for index, (observation, row) in enumerate(zip(observations, candidates)):
+        if not isinstance(observation, GPSObservation):
+            raise TypeError(f"observation {index} must be a GPSObservation")
+        if isinstance(row, (str, bytes)) or not isinstance(row, Sequence):
+            raise TypeError(f"candidate row {index} must be a sequence")
+        for candidate in row:
+            if not isinstance(candidate, CandidateState):
+                raise TypeError(f"candidate row {index} contains a non-CandidateState value")
+            if candidate.arc_id not in trip.network.arcs:
+                raise ValueError(f"candidate arc {candidate.arc_id} is absent from the network")
     matched: list[int | None] = [None] * len(observations)
     segment_ids: list[int | None] = [None] * len(observations)
     route: list[int] = []

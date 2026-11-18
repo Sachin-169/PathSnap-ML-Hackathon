@@ -5,6 +5,7 @@ from __future__ import annotations
 import heapq
 import math
 from collections import OrderedDict
+from numbers import Real
 
 from .types import CandidateState, RoadNetwork
 
@@ -14,6 +15,8 @@ _EARTH_RADIUS_M = 6_371_008.8
 def haversine_distance_m(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
     """Great-circle distance between longitude/latitude coordinates."""
     values = (lon1, lat1, lon2, lat2)
+    if any(isinstance(value, bool) or not isinstance(value, Real) for value in values):
+        raise ValueError("coordinates must be real numbers")
     if not all(math.isfinite(value) for value in values):
         raise ValueError("coordinates must be finite")
     if not (-180 <= lon1 <= 180 and -180 <= lon2 <= 180):
@@ -36,15 +39,24 @@ class RoadNetworkRouter:
     """
 
     def __init__(self, network: RoadNetwork, cache_size: int = 8192) -> None:
-        if cache_size < 0:
-            raise ValueError("cache_size must be non-negative")
+        if isinstance(cache_size, bool) or not isinstance(cache_size, int) or cache_size < 0:
+            raise ValueError("cache_size must be a non-negative integer")
         self.network = network
         self.cache_size = cache_size
         self.arc_lengths_m: dict[int, float] = {}
         self.adjacency: dict[int, list[tuple[int, float]]] = {
             node_id: [] for node_id in network.nodes
         }
+        for node_id, node in network.nodes.items():
+            if node_id != node.node_id:
+                raise ValueError("road-node mapping keys must match node IDs")
+            if not isinstance(node.longitude, Real) or not math.isfinite(node.longitude) or not -180.0 <= node.longitude <= 180.0:
+                raise ValueError(f"node {node_id} has invalid longitude")
+            if not isinstance(node.latitude, Real) or not math.isfinite(node.latitude) or not -90.0 <= node.latitude <= 90.0:
+                raise ValueError(f"node {node_id} has invalid latitude")
         for arc_id, arc in network.arcs.items():
+            if arc_id != arc.arc_id:
+                raise ValueError("road-arc mapping keys must match arc IDs")
             if arc.from_node_id not in network.nodes or arc.to_node_id not in network.nodes:
                 raise ValueError(f"arc {arc_id} refers to a missing node")
             length = arc.length_m
@@ -54,7 +66,7 @@ class RoadNetworkRouter:
                 length = haversine_distance_m(
                     start.longitude, start.latitude, end.longitude, end.latitude
                 )
-            if not math.isfinite(length) or length < 0:
+            if isinstance(length, bool) or not isinstance(length, Real) or not math.isfinite(length) or length < 0:
                 raise ValueError(f"arc {arc_id} length must be finite and non-negative")
             self.arc_lengths_m[arc_id] = length
             self.adjacency[arc.from_node_id].append((arc.to_node_id, length))
@@ -107,7 +119,7 @@ class RoadNetworkRouter:
         previous_fraction = 0.5 if previous.fraction_along is None else previous.fraction_along
         current_fraction = 0.5 if current.fraction_along is None else current.fraction_along
         for name, fraction in (("previous", previous_fraction), ("current", current_fraction)):
-            if not math.isfinite(fraction) or not 0.0 <= fraction <= 1.0:
+            if isinstance(fraction, bool) or not isinstance(fraction, Real) or not math.isfinite(fraction) or not 0.0 <= fraction <= 1.0:
                 raise ValueError(f"{name} candidate fraction must be finite and in [0, 1]")
 
         previous_length = self.arc_lengths_m[previous.arc_id]

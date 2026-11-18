@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from numbers import Real
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -16,7 +17,7 @@ class ViterbiLattice:
 
 
 def _validate_log_value(value: float, name: str) -> None:
-    if math.isnan(value) or value == math.inf:
+    if isinstance(value, bool) or not isinstance(value, Real) or math.isnan(value) or value == math.inf:
         raise ValueError(f"{name} must be finite or negative infinity")
 
 
@@ -99,6 +100,11 @@ def viterbi_backtrack(lattice: ViterbiLattice) -> DecodedPath:
     """
     if not lattice.scores or len(lattice.scores) != len(lattice.backpointers):
         raise ValueError("lattice must contain matching score and pointer rows")
+    for time_index, (scores, pointers) in enumerate(zip(lattice.scores, lattice.backpointers)):
+        if not scores or len(scores) != len(pointers):
+            raise ValueError(f"lattice row {time_index} has inconsistent dimensions")
+        for score in scores:
+            _validate_log_value(score, "Viterbi score")
     final_scores = lattice.scores[-1]
     if not final_scores:
         raise ValueError("lattice must contain at least one terminal state")

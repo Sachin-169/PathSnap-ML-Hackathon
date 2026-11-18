@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from numbers import Real
 from typing import Sequence
 
 from .network import RoadNetworkRouter
@@ -11,16 +12,16 @@ from .types import CandidateState
 
 def log_probability(probability: float) -> float:
     """Return log(p), representing a zero probability as negative infinity."""
-    if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+    if isinstance(probability, bool) or not isinstance(probability, Real) or not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
         raise ValueError("probability must be finite and in [0, 1]")
     return -math.inf if probability == 0.0 else math.log(probability)
 
 
 def log_gaussian_emission_probability(distance_m: float, sigma_m: float) -> float:
     """Gaussian emission log-density without exponentiating a small value."""
-    if not math.isfinite(distance_m) or distance_m < 0:
+    if isinstance(distance_m, bool) or not isinstance(distance_m, Real) or not math.isfinite(distance_m) or distance_m < 0:
         raise ValueError("distance_m must be a finite non-negative value")
-    if not math.isfinite(sigma_m) or sigma_m <= 0:
+    if isinstance(sigma_m, bool) or not isinstance(sigma_m, Real) or not math.isfinite(sigma_m) or sigma_m <= 0:
         raise ValueError("sigma_m must be a finite positive value")
     standardized_distance = distance_m / sigma_m
     return -math.log(math.sqrt(2.0 * math.pi) * sigma_m) - 0.5 * standardized_distance**2
@@ -65,7 +66,7 @@ def logsumexp(values: Sequence[float]) -> float:
     """Stable log(sum(exp(values))); an all-impossible set returns ``-inf``."""
     if not values:
         return -math.inf
-    if any(math.isnan(value) or value == math.inf for value in values):
+    if any(isinstance(value, bool) or not isinstance(value, Real) or math.isnan(value) or value == math.inf for value in values):
         raise ValueError("log values must not contain NaN or positive infinity")
     maximum = max(values)
     if maximum == -math.inf:
@@ -75,7 +76,7 @@ def logsumexp(values: Sequence[float]) -> float:
 
 def normalize_log_probabilities(values: Sequence[float]) -> tuple[float, ...]:
     """Normalize finite log weights; preserve an all-impossible vector."""
-    if any(math.isnan(value) or value == math.inf for value in values):
+    if any(isinstance(value, bool) or not isinstance(value, Real) or math.isnan(value) or value == math.inf for value in values):
         raise ValueError("log values must not contain NaN or positive infinity")
     normalizer = logsumexp(values)
     if normalizer == -math.inf:
