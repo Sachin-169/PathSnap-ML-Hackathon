@@ -4,6 +4,7 @@
 
 ### Completed
 - Checkpoint 1: Added dependency-free HMM data structures and the initial module contract in `route_reconstruction/types.py`.
+- Checkpoint 2: Added configurable Gaussian distance likelihoods and support for calibrated candidate probabilities.
 - Added ignore rules for local hackathon archives, raw trip data files, and macOS metadata.
 
 ### Pending
@@ -16,3 +17,4 @@
 
 ### Validation
 - Checkpoint 1 import/structure smoke check: passed using the public data structures.
+- Checkpoint 2 numerical smoke checks: passed (Gaussian reference value, distance monotonicity, classifier-probability selection, and invalid inputs).

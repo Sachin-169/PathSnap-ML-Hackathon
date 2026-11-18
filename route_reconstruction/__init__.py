@@ -1,5 +1,6 @@
 """PathSnap HMM and Viterbi route reconstruction."""
 
+from .emissions import emission_probability, gaussian_emission_probability
 from .types import (
     CandidateState,
     GPSObservation,
@@ -20,4 +21,6 @@ __all__ = [
     "RoadArc",
     "RoadNetwork",
     "RoadNode",
+    "emission_probability",
+    "gaussian_emission_probability",
 ]
