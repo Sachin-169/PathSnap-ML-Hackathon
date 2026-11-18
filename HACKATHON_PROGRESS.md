@@ -1,40 +1,27 @@
-# Hackathon Progress
+# PathSnap integration progress
 
 ## Member 3: HMM + Viterbi
 
-### Completed
-- Checkpoint 1: Added dependency-free HMM data structures and the initial module contract in `route_reconstruction/types.py`.
-- Checkpoint 2: Added configurable Gaussian distance likelihoods and support for calibrated candidate probabilities.
-- Checkpoint 3: Added directed shortest-path distance between candidate positions and an exponential route/GPS distance-consistency likelihood.
-- Checkpoint 4: Added stable log emission/transition likelihoods, log-sum-exp normalization, and uniform or caller-supplied initial priors.
-- Checkpoint 5: Added the variable-state Viterbi forward recurrence and predecessor table in log space.
-- Checkpoint 6: Added terminal-state selection, backtracking, and per-observation/collapsed arc-sequence reconstruction.
-- Checkpoint 7: Added trip-level segmentation and recovery at invalid rows, missing candidates, timestamp gaps, and infeasible road transitions.
-- Checkpoint 8: Added schema/configuration validation, malformed graph checks, and explicit empty-input handling.
-- Checkpoint 9: Added a standard-library automated test suite using synthetic graph and trip fixtures.
-- Checkpoint 10: Documented the HMM math, data contract, configuration, Member 4 call/output, limitations, and integration tasks.
-- Added ignore rules for local hackathon archives, raw trip data files, and macOS metadata.
-- Post-merge integration: Added `build_map_matching_input` for current Member 1 DataFrame schemas and flat candidate rows; exported it as a public API and documented per-trip use and the optional calibrated-probability input.
-- Added synthetic adapter tests for the current field mappings, missing candidate observations, probability row alignment, DataFrame node indexes, and invalid input handling.
+The HMM/Viterbi implementation is in `route_reconstruction/`: typed trip and road-network structures, Gaussian or classifier-scored emissions, directed graph transition probabilities, log-space Viterbi decoding, backtracking, and recovery at GPS gaps or infeasible transitions. `build_map_matching_input` adapts the current preprocessing schemas.
 
-### Pending
-- Member 2: persist the chosen final model and provide an inference path that calculates the same feature columns for unlabeled candidate rows; then supply aligned calibrated probabilities if the HMM should use the model emission.
-- Member 4: add the API/UI and connect it to the per-trip adapter and `match_trip` interface.
-- End-to-end: validate against the final merged interfaces and an allowed held-out partition after those pieces are available.
+## Completed integration
 
-### Interface status
-- Current Member 1 preprocessing code is present and its GPS, node, road arc, and candidate columns are supported by `build_map_matching_input`. The adapter consumes one trip at a time and keeps node/arc IDs intact.
-- Member 2 training code and CV results are present, but no saved final estimator or unlabeled inference feature path is present. The adapter's optional classifier probability argument is ready once an aligned probability vector is available.
-- Member 4 API/UI implementation is not present yet. The stable HMM call is `match_trip(build_map_matching_input(...))`.
+- Built label-free inference features matching the eight model columns from the training feature pipeline.
+- Added Optuna TPE Bayesian hyperparameter search for HistGradientBoosting, using five-fold trip-grouped CV and candidate-level macro F1 as the objective; the run also reports observation-level Top-1.
+- Added final model export plus tuning trial and summary files.
+- Added a FastAPI service that scores aligned candidate features and sends the probabilities to HMM/Viterbi.
+- Added a student-test registry builder that reads track, node, and arc files without loading reference route labels.
+- Added the evaluator UI integration and a separate Folium HTML map generator with network, GPS, predicted route, endpoints, and optional reference comparison layer.
+- Added run instructions in the root and per-module READMEs.
 
-### Validation
-- Checkpoint 1 import/structure smoke check: passed using the public data structures.
-- Checkpoint 2 numerical smoke checks: passed (Gaussian reference value, distance monotonicity, classifier-probability selection, and invalid inputs).
-- Checkpoint 3 synthetic graph checks: passed (directed path distance, along-arc positions, geodesic distance, and disconnected candidate scoring).
-- Checkpoint 4 probability checks: passed (extreme-distance log likelihood, normalization, uniform/weighted priors, zero probability, and impossible transitions).
-- Checkpoint 5 dynamic-programming checks: passed (known two-step lattice, expected scores/backpointers, and forbidden transitions).
-- Checkpoint 6 backtracking checks: passed (known best path, no-path behavior, tie selection, and repeated-arc collapse).
-- Checkpoint 7 synthetic trip checks: passed (connected path, long timestamp gap, missing candidates, and disconnected roads).
-- Checkpoint 8 edge-case checks: passed (empty and single-point trips, missing candidates, invalid observation values, graph/candidate mismatches, and invalid configuration values).
-- Checkpoints 1–10 prior validation: 17 synthetic unit tests passed, with compile checks, public-export checks, and conditional-transition normalization.
-- Post-merge adapter validation: run the full suite after integration changes; results are recorded with the integration checkpoint commit.
+## Validation status
+
+- Bayesian search: 10 trials requested; 6 completed fully and 4 were pruned. Best grouped macro F1 was 0.8715 vs. 0.8691 for the baseline. Observation Top-1 was 0.7880 vs. 0.7868. These metrics are recorded in `results/bayesian_optimization_summary.json`; neither should be described as route accuracy.
+- Full synthetic suite: 25 tests passed.
+- End-to-end API smoke check: health and trip-list endpoints returned HTTP 200; trip `00000009` returned a predicted route for 1,049 observations and 13,104 road arcs (432 predicted arcs across 2 decoded segments).
+- Folium smoke check: generated `artifacts/maps/trip_00000009.html` with road-network, GPS, predicted-route, start/end, and optional hidden reference-route layers.
+- Python compile check: passed for API, preprocessing, models, route reconstruction, visualizations, and tests.
+
+## Local-only inputs and generated files
+
+Dataset archives, raw trajectory files, the student-trip registry, HTML maps, and training CSVs remain local and are ignored by Git. The final classifier artifact and tuning summary are produced by the documented tuning run and can be used by the API on Laptop 1.
