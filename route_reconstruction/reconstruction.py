@@ -22,7 +22,7 @@ def reconstruct_arc_ids(
 ) -> tuple[tuple[int, ...], tuple[int, ...]]:
     """Map decoded state indices to per-observation and collapsed arc IDs."""
     if not decoded.state_indices:
-        if decoded.log_probability == float("-inf"):
+        if decoded.log_score == float("-inf"):
             return (), ()
         raise ValueError("decoded path must contain at least one state")
     if len(decoded.state_indices) != len(candidates_by_observation):

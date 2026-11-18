@@ -11,6 +11,7 @@ from .probabilities import (
     emission_log_probability,
     transition_log_probability,
     initial_log_probabilities,
+    normalize_log_probabilities,
 )
 from .reconstruction import reconstruct_arc_ids
 from .types import (
@@ -73,7 +74,7 @@ def _transition_matrix(
                         network_distance_m, gps_distance_m, config.transition_beta_m
                     )
                 )
-        rows.append(tuple(row))
+        rows.append(normalize_log_probabilities(tuple(row)))
     return tuple(rows)
 
 
@@ -154,7 +155,7 @@ def match_trip(
                 matched[observation_index] = arc_id
                 segment_ids[observation_index] = next_segment_id
             route.extend(segment_route)
-            segment_log_scores.append(decoded.log_probability)
+            segment_log_scores.append(decoded.log_score)
             next_segment_id += 1
         else:
             diagnostics.append(
@@ -234,13 +235,13 @@ def match_trip(
         )
 
     flush_pending()
-    total_log_probability = (
+    total_log_score = (
         math.fsum(segment_log_scores) if segment_log_scores else None
     )
     return MapMatchingResult(
         matched_arc_ids=tuple(matched),
         route_arc_ids=tuple(route),
-        log_probability=total_log_probability,
+        log_score=total_log_score,
         diagnostics=tuple(diagnostics),
         segment_ids=tuple(segment_ids),
     )

@@ -86,10 +86,10 @@ def viterbi_forward(
 
 @dataclass(frozen=True)
 class DecodedPath:
-    """Recovered state-index sequence and its best log probability."""
+    """Recovered state-index sequence and its best summed log score."""
 
     state_indices: tuple[int, ...]
-    log_probability: float
+    log_score: float
 
 
 def viterbi_backtrack(lattice: ViterbiLattice) -> DecodedPath:

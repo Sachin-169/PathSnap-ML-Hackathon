@@ -7,8 +7,8 @@ upstream candidate-generation and API schemas are agreed by the team.
 from __future__ import annotations
 
 import math
-from numbers import Real
 from dataclasses import dataclass, field
+from numbers import Real
 from typing import Mapping, Sequence
 
 
@@ -140,6 +140,6 @@ class MapMatchingResult:
 
     matched_arc_ids: Sequence[int | None]
     route_arc_ids: Sequence[int]
-    log_probability: float | None
+    log_score: float | None
     diagnostics: Sequence[str] = field(default_factory=tuple)
     segment_ids: Sequence[int | None] = field(default_factory=tuple)

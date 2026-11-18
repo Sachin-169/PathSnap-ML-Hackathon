@@ -3,6 +3,7 @@
 import math
 import unittest
 
+from route_reconstruction.matcher import _transition_matrix
 from route_reconstruction import (
     CandidateState,
     DecodedPath,
@@ -11,7 +12,10 @@ from route_reconstruction import (
     MapMatchingInput,
     RoadArc,
     RoadNetwork,
+    RoadNetworkRouter,
     RoadNode,
+    candidate_transition_probability,
+    transition_probability,
     emission_probability,
     initial_log_probabilities,
     log_gaussian_emission_probability,
@@ -52,6 +56,51 @@ class ProbabilityTests(unittest.TestCase):
         self.assertAlmostEqual(math.exp(logs[0]), 0.25)
 
 
+class TransitionTests(unittest.TestCase):
+    def test_transition_likelihood_prefers_distance_consistency(self) -> None:
+        exact = transition_probability(100.0, 100.0, 20.0)
+        close = transition_probability(100.0, 105.0, 20.0)
+        distant = transition_probability(100.0, 160.0, 20.0)
+        self.assertAlmostEqual(exact, 1.0)
+        self.assertGreater(close, distant)
+
+    def test_candidate_transition_respects_directed_connectivity(self) -> None:
+        network = connected_network()
+        router = RoadNetworkRouter(network)
+        connected = candidate_transition_probability(
+            CandidateState(0, 1.0, 0.5), CandidateState(1, 1.0, 0.5), 11.2, 50.0, router
+        )
+        disconnected = candidate_transition_probability(
+            CandidateState(0, 1.0, 0.5), CandidateState(2, 1.0, 0.5), 11.2, 50.0, router
+        )
+        self.assertGreater(connected, 0.0)
+        self.assertEqual(disconnected, 0.0)
+
+    def test_transition_matrix_rows_normalize_over_feasible_next_states(self) -> None:
+        network = RoadNetwork(
+            {
+                0: RoadNode(0, 0.0, 0.0),
+                1: RoadNode(1, 0.0001, 0.0),
+                2: RoadNode(2, 0.0002, 0.0),
+                3: RoadNode(3, 0.0003, 0.0),
+            },
+            {
+                0: RoadArc(0, 0, 1, 10.0),
+                1: RoadArc(1, 1, 2, 10.0),
+                2: RoadArc(2, 1, 3, 30.0),
+            },
+        )
+        matrix = _transition_matrix(
+            GPSObservation(1.0, 0.00005, 0.0),
+            GPSObservation(2.0, 0.00015, 0.0),
+            [CandidateState(0, 1.0, 0.5)],
+            [CandidateState(1, 1.0, 0.5), CandidateState(2, 1.0, 0.5)],
+            RoadNetworkRouter(network),
+            MapMatchingConfig(),
+        )
+        self.assertAlmostEqual(sum(math.exp(value) for value in matrix[0]), 1.0)
+
+
 class ViterbiTests(unittest.TestCase):
     def test_known_sequence_and_backtracking(self) -> None:
         log = math.log
@@ -62,13 +111,13 @@ class ViterbiTests(unittest.TestCase):
         )
         decoded = viterbi_backtrack(lattice)
         self.assertEqual(decoded.state_indices, (0, 0))
-        self.assertAlmostEqual(decoded.log_probability, log(0.3402))
+        self.assertAlmostEqual(decoded.log_score, log(0.3402))
 
     def test_impossible_path_is_not_fabricated(self) -> None:
         lattice = viterbi_forward([0.0], [[0.0], [0.0]], [[[-math.inf]]])
         decoded = viterbi_backtrack(lattice)
         self.assertEqual(decoded.state_indices, ())
-        self.assertEqual(decoded.log_probability, -math.inf)
+        self.assertEqual(decoded.log_score, -math.inf)
 
     def test_candidate_states_reconstruct_observation_and_route_ids(self) -> None:
         rows = [
@@ -122,7 +171,7 @@ class TripMatcherTests(unittest.TestCase):
     def test_empty_trajectory(self) -> None:
         result = match_trip(MapMatchingInput([], [], RoadNetwork({}, {})))
         self.assertEqual(result.matched_arc_ids, ())
-        self.assertIsNone(result.log_probability)
+        self.assertIsNone(result.log_score)
 
     def test_unrealistic_speed_starts_new_segment(self) -> None:
         observations = [GPSObservation(1.0, 0.00005, 0.0), GPSObservation(2.0, 0.00015, 0.0)]
