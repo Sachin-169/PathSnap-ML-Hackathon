@@ -11,12 +11,11 @@
 - Checkpoint 6: Added terminal-state selection, backtracking, and per-observation/collapsed arc-sequence reconstruction.
 - Checkpoint 7: Added trip-level segmentation and recovery at invalid rows, missing candidates, timestamp gaps, and infeasible road transitions.
 - Checkpoint 8: Added schema/configuration validation, malformed graph checks, and explicit empty-input handling.
+- Checkpoint 9: Added a standard-library automated test suite using synthetic graph and trip fixtures.
 - Added ignore rules for local hackathon archives, raw trip data files, and macOS metadata.
 
 ### Pending
-- Emission and transition probability models.
-- Initial probabilities, log-space decoding, Viterbi and backtracking.
-- Gap/disconnection handling, validation, tests, integration documentation.
+- Checkpoint 10: Document mathematics and integration interfaces.
 
 ### Interface status
 - The repository currently contains no Member 1 candidate-generation or Member 4 API code. The structures are a provisional contract and will be documented for integration review.
@@ -30,3 +29,4 @@
 - Checkpoint 6 backtracking checks: passed (known best path, no-path behavior, tie selection, and repeated-arc collapse).
 - Checkpoint 7 synthetic trip checks: passed (connected path, long timestamp gap, missing candidates, and disconnected roads).
 - Checkpoint 8 edge-case checks: passed (empty and single-point trips, missing candidates, invalid observation values, graph/candidate mismatches, and invalid configuration values).
+- Checkpoint 9 automated tests: passed: 14 synthetic unit tests via `python3 -m unittest discover -s tests -v`.
