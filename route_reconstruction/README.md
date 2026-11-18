@@ -11,7 +11,7 @@ The supplied dataset documentation describes these headerless, whitespace-separa
 - `.arcs`: from-node ID, to-node ID; the row index is the arc ID.
 - `.route`: chronological reference arc IDs. Route rows are not assumed to align one-to-one with GPS observations.
 
-The repository had no Member 1, Member 2, or Member 4 code when this module was implemented. The following is therefore a **provisional typed contract**, ready for adapters once the team agrees on their exact schemas.
+The typed contract below remains the HMM's internal API. The current preprocessing schema has since been added in `data_processing/`; `build_map_matching_input` adapts its GPS, projected nodes, road arcs, and flat candidate records into this contract. The adapter is deliberately confined to this package and does not change upstream team modules.
 
 | Type | Required data |
 |---|---|
@@ -22,7 +22,23 @@ The repository had no Member 1, Member 2, or Member 4 code when this module was 
 | `RoadNetwork` | `nodes` and `arcs` mappings keyed by their IDs. |
 | `MapMatchingInput` | One observation row and exactly one candidate row per observation, plus the trip road network. |
 
-Member 1 should provide candidate rows in GPS observation order and preserve the candidate-to-arc ID mapping. Supplying `fraction_along` is strongly recommended. If omitted, the router uses the arc midpoint, which weakens distance estimates. When `RoadArc.length_m` is omitted, arc length is approximated by the geodesic chord between endpoint nodes; provide a better road length when available.
+Member 1 currently provides flat candidate rows keyed by `observation_id`, with `arc_id`, `distance_m`, and `projection_fraction`. `build_map_matching_input` groups them into one candidate list per cleaned GPS row, maps `timestamp` to `timestamp_s`, maps `start_node`/`end_node` to the internal arc fields, and preserves `length_m`. It accepts pandas DataFrames or sequences of row mappings. It uses node DataFrame indexes as node IDs when no `node_id` column exists. Pass data for one trip at a time; candidate observation IDs must refer to that trip's cleaned GPS row order. Missing candidate observations are represented as empty candidate lists and decoded as unmatched. The current candidate generator raises when the entire candidate table is empty, so that upstream condition must be handled before calling the adapter.
+
+Example:
+
+```python
+from route_reconstruction import build_map_matching_input, match_trip
+
+trip_input = build_map_matching_input(
+    cleaned_gps, projected_nodes, road_network, candidates,
+    classifier_probabilities=candidate_positive_probabilities,  # optional
+)
+result = match_trip(trip_input)
+```
+
+If supplied, `candidate_positive_probabilities` must contain one calibrated positive-class probability per candidate row, in exactly the same row order as the candidate table. The adapter attaches probabilities before grouping by observation. Do not pass feature rows after filtering, shuffling, or a train/test transformation unless the probabilities are aligned to that exact table.
+
+The current preprocessing candidate function can produce an empty candidate table only by raising an exception; the adapter itself supports an empty table and creates empty candidate lists. If the road network has arcs removed during validity filtering, retain its `arc_id` values as generated; do not renumber arcs independently of candidates.
 
 Member 2 may populate `classifier_probability` with a calibrated probability for each candidate. Do not pass logits, margins, or uncalibrated scores in this field. When it is absent, the module uses the geometric Gaussian emission model. The module does not consume `.route` labels; use permitted reference routes outside the prediction path for development evaluation.
 
@@ -129,8 +145,8 @@ The suite covers emissions, initial priors, Viterbi scores/backtracking, route r
 
 ## Limitations and integration tasks
 
-1. Confirm this provisional contract with Members 1, 2, and 4, then add adapters rather than changing their modules unnecessarily.
+1. The Member 1 schema adapter is implemented. Confirm once more when interfaces change; the Member 2 inference artifact/probability interface and Member 4 API/UI integration are not present yet.
 2. Check whether each `.arcs` row is truly directed and whether reverse directions are represented as separate rows. This implementation respects the provided direction.
 3. Supply candidate along-arc fractions and realistic arc lengths where possible; midpoint and endpoint-chord fallbacks are approximations.
 4. Profile shortest-path search on permitted trip graphs and tune the bounded pair cache if needed.
-5. Validate probability calibration, parameters, route continuity, and inference time on training and student-testing partitions before reporting results.
+5. Validate probability calibration, parameters, route continuity, and inference time on training and student-testing partitions before reporting results. The current model training script evaluates cross-validation models but does not persist a final estimator, so classifier probabilities cannot yet be wired into this adapter from a saved model.
