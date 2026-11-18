@@ -81,3 +81,42 @@ def viterbi_forward(
         pointer_rows.append(tuple(current_pointers))
 
     return ViterbiLattice(tuple(score_rows), tuple(pointer_rows))
+
+
+@dataclass(frozen=True)
+class DecodedPath:
+    """Recovered state-index sequence and its best log probability."""
+
+    state_indices: tuple[int, ...]
+    log_probability: float
+
+
+def viterbi_backtrack(lattice: ViterbiLattice) -> DecodedPath:
+    """Select the best terminal state and follow predecessor pointers backward.
+
+    If every terminal state is impossible, return an empty path with a
+    negative-infinity score; callers can then recover or report no match.
+    """
+    if not lattice.scores or len(lattice.scores) != len(lattice.backpointers):
+        raise ValueError("lattice must contain matching score and pointer rows")
+    final_scores = lattice.scores[-1]
+    if not final_scores:
+        raise ValueError("lattice must contain at least one terminal state")
+    best_state = max(range(len(final_scores)), key=final_scores.__getitem__)
+    best_score = final_scores[best_state]
+    if best_score == -math.inf:
+        return DecodedPath((), -math.inf)
+
+    state_indices = [best_state]
+    for time_index in range(len(lattice.scores) - 1, 0, -1):
+        pointers = lattice.backpointers[time_index]
+        if len(pointers) != len(lattice.scores[time_index]):
+            raise ValueError("backpointer row does not align with score row")
+        previous_state = pointers[state_indices[-1]]
+        if previous_state is None:
+            raise ValueError("reachable state is missing its predecessor")
+        if not 0 <= previous_state < len(lattice.scores[time_index - 1]):
+            raise ValueError("backpointer refers to an invalid previous state")
+        state_indices.append(previous_state)
+    state_indices.reverse()
+    return DecodedPath(tuple(state_indices), best_score)

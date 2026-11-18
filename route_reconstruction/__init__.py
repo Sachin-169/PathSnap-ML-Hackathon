@@ -1,6 +1,7 @@
 """PathSnap HMM and Viterbi route reconstruction."""
 
 from .emissions import emission_probability, gaussian_emission_probability
+from .reconstruction import collapse_consecutive_arc_ids, reconstruct_arc_ids
 from .network import RoadNetworkRouter, haversine_distance_m
 from .probabilities import (
     candidate_transition_log_probability,
@@ -14,6 +15,7 @@ from .probabilities import (
 )
 from .transitions import candidate_transition_probability, transition_probability
 from .viterbi import ViterbiLattice, viterbi_forward
+from .viterbi import DecodedPath, ViterbiLattice, viterbi_backtrack, viterbi_forward
 from .types import (
     CandidateState,
     GPSObservation,
@@ -49,5 +51,9 @@ __all__ = [
     "normalize_log_probabilities",
     "transition_log_probability",
     "ViterbiLattice",
+    "DecodedPath",
+    "viterbi_backtrack",
     "viterbi_forward",
+    "collapse_consecutive_arc_ids",
+    "reconstruct_arc_ids",
 ]
