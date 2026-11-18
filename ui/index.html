@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PathSnap Route Evaluator</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    :root { color-scheme: light; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #172033; background: #f3f6fb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 40px; }
+    header { margin-bottom: 22px; }
+    h1 { margin: 0 0 6px; font-size: 28px; }
+    .subtitle { color: #526078; margin: 0; }
+    .panel { background: white; border: 1px solid #dce3ef; border-radius: 14px; padding: 18px; box-shadow: 0 4px 18px #1d35570a; }
+    .controls { display: grid; grid-template-columns: minmax(240px, 1.2fr) minmax(190px, 2fr) auto auto; gap: 12px; align-items: end; }
+    label { display: block; font-size: 12px; font-weight: 700; color: #526078; margin-bottom: 6px; }
+    input, select, button { width: 100%; min-height: 42px; border-radius: 8px; border: 1px solid #cbd5e1; padding: 9px 11px; font: inherit; background: white; }
+    button { border: 0; background: #245bd6; color: white; font-weight: 700; cursor: pointer; padding-inline: 18px; }
+    button.secondary { color: #24324b; background: #e9eef7; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .hint, #status { color: #526078; font-size: 13px; margin: 12px 0 0; }
+    #status.error { color: #b42318; }
+    .result-head { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: baseline; margin: 22px 0 12px; }
+    .result-head h2 { font-size: 18px; margin: 0; }
+    .metric { font-size: 13px; color: #526078; }
+    .map { height: min(60vh, 540px); min-height: 300px; width: 100%; border-radius: 10px; background: #f8fafc; border: 1px solid #dce3ef; z-index: 0; }
+    .legend { display: flex; flex-wrap: wrap; gap: 18px; margin: 12px 0 0; font-size: 13px; color: #526078; }
+    .key { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+    .gps-key { background: #2774d8; }
+    .route-key { background: #df4d3f; }
+    .network-key { background: #9aa8ba; }
+    .details { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+    h3 { font-size: 14px; margin: 0 0 8px; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f6f8fc; border-radius: 8px; padding: 12px; margin: 0; max-height: 220px; overflow: auto; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    details.panel { padding: 0; overflow: hidden; }
+    details.panel summary { cursor: pointer; font-size: 14px; font-weight: 700; padding: 16px 18px; }
+    details.panel pre { margin: 0 18px 18px; }
+    @media (max-width: 760px) { .controls { grid-template-columns: 1fr 1fr; } .details { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>PathSnap Route Evaluator</h1>
+    <p class="subtitle">Choose an evaluation trip and request its reconstructed road route.</p>
+  </header>
+  <section class="panel">
+    <div class="controls">
+      <div>
+        <label for="apiBase">Laptop 1 API address</label>
+        <input id="apiBase" value="http://localhost:8000" spellcheck="false">
+      </div>
+      <div>
+        <label for="tripSelect">Evaluation trip</label>
+        <select id="tripSelect" disabled><option value="">Connect to load trips</option></select>
+      </div>
+      <button id="connectButton" class="secondary">Load trips</button>
+      <button id="matchButton" disabled>Show route</button>
+    </div>
+    <p class="hint">On Laptop 2, enter Laptop 1’s network address (for example, <code>http://192.168.1.20:8000</code>). “localhost” points to the laptop running this page.</p>
+    <p id="status" role="status">Waiting for API connection.</p>
+  </section>
+
+  <section id="results" hidden>
+    <div class="result-head">
+      <h2 id="tripTitle">Route result</h2>
+      <span id="score" class="metric"></span>
+      <span id="segmentSummary" class="metric"></span>
+    </div>
+    <section class="panel">
+      <div id="routeMap" class="map" role="application" aria-label="Interactive GPS, road-network, and predicted-route map"></div>
+      <div class="legend"><span><i class="key network-key"></i>Road network</span><span><i class="key gps-key"></i>GPS observations</span><span><i class="key route-key"></i>Predicted route</span></div>
+    </section>
+    <div class="details">
+      <section class="panel"><h3>Reconstructed route arc IDs</h3><pre id="routeOutput"></pre></section>
+      <section class="panel"><h3>Matching diagnostics</h3><pre id="diagnosticsOutput"></pre></section>
+      <details class="panel"><summary>GPS observation data</summary><pre id="gpsOutput"></pre></details>
+      <details class="panel"><summary>Road network data</summary><pre id="networkOutput"></pre></details>
+    </div>
+  </section>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+  const apiInput = document.getElementById('apiBase');
+  const tripSelect = document.getElementById('tripSelect');
+  const connectButton = document.getElementById('connectButton');
+  const matchButton = document.getElementById('matchButton');
+  const statusText = document.getElementById('status');
+  let lastResult = null;
+  let map = null;
+  let layerControl = null;
+
+  function apiRoot() { return apiInput.value.trim().replace(/\/+$/, ''); }
+  function setStatus(message, isError = false) {
+    statusText.textContent = message;
+    statusText.className = isError ? 'error' : '';
+  }
+
+  async function responseJson(response) {
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || `Request failed (${response.status})`);
+    return data;
+  }
+
+  async function loadTrips() {
+    connectButton.disabled = true;
+    matchButton.disabled = true;
+    tripSelect.disabled = true;
+    setStatus('Connecting to Laptop 1 and loading trip options…');
+    try {
+      const payload = await responseJson(await fetch(`${apiRoot()}/api/trips`));
+      tripSelect.replaceChildren();
+      for (const trip of payload.trips || []) {
+        const option = new Option(trip.label || `Trip ${trip.trip_id}`, trip.trip_id);
+        tripSelect.add(option);
+      }
+      if (!tripSelect.options.length) throw new Error('The API returned no evaluation trips.');
+      tripSelect.disabled = false;
+      matchButton.disabled = false;
+      setStatus(`Connected. Loaded ${tripSelect.options.length} trip(s).`);
+    } catch (error) {
+      setStatus(`${error.message}. Check the API address, server, and shared network.`, true);
+    } finally {
+      connectButton.disabled = false;
+    }
+  }
+
+  async function requestRoute() {
+    const tripId = tripSelect.value;
+    if (!tripId) return;
+    matchButton.disabled = true;
+    setStatus(`Matching trip ${tripId}…`);
+    try {
+      const url = `${apiRoot()}/api/trips/${encodeURIComponent(tripId)}/match`;
+      lastResult = await responseJson(await fetch(url, { method: 'POST' }));
+      renderResult(lastResult);
+      setStatus(`Trip ${tripId} matched successfully.`);
+    } catch (error) {
+      setStatus(`${error.message}.`, true);
+    } finally {
+      matchButton.disabled = false;
+    }
+  }
+
+  function renderResult(result) {
+    document.getElementById('results').hidden = false;
+    document.getElementById('tripTitle').textContent = `Trip ${result.trip_id}`;
+    document.getElementById('score').textContent = result.log_score == null ? '' : `Log score: ${Number(result.log_score).toFixed(2)}`;
+    const segments = [...new Set((result.segment_ids || []).filter(x => x !== null))];
+    document.getElementById('segmentSummary').textContent = `${segments.length} decoded segment(s)`;
+    document.getElementById('routeOutput').textContent = JSON.stringify(result.route_arc_ids || [], null, 2);
+    document.getElementById('diagnosticsOutput').textContent = (result.diagnostics || []).join('\n') || 'No diagnostics.';
+    document.getElementById('gpsOutput').textContent = `${(result.gps || []).length} observations\n\n` + JSON.stringify(result.gps || [], null, 2);
+    document.getElementById('networkOutput').textContent = `${(result.road_network_geometry || []).length} directed road arcs\n\n` + JSON.stringify(result.road_network_geometry || [], null, 2);
+    drawMap(result);
+  }
+
+  function drawMap(result) {
+    if (!window.L) {
+      setStatus('Map library did not load. Check the internet connection and refresh the page.', true);
+      return;
+    }
+    if (!map) {
+      map = L.map('routeMap', {preferCanvas: true});
+      const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+      }).addTo(map);
+      map.setView([0, 0], 2);
+      map._pathsnapOsmLayer = osm;
+    }
+
+    if (layerControl) map.removeControl(layerControl);
+    const oldLayers = map._pathsnapLayers || [];
+    for (const layer of oldLayers) map.removeLayer(layer);
+
+    const roadFeatures = (result.road_network_geometry || []).map(arc => ({
+      type: 'Feature',
+      properties: {arc_id: arc.arc_id},
+      geometry: {
+        type: 'LineString',
+        coordinates: (arc.coordinates || []).map(([lat, lon]) => [lon, lat])
+      }
+    }));
+    const roadLayer = L.geoJSON({type: 'FeatureCollection', features: roadFeatures}, {
+      style: {color: '#65758b', weight: 1, opacity: 0.55},
+      onEachFeature: (feature, layer) => layer.bindPopup(`Road arc ${feature.properties.arc_id}`)
+    });
+
+    const gpsPoints = (result.gps || []).filter(p => Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+    const gpsLayer = L.layerGroup();
+    for (const [index, point] of gpsPoints.entries()) {
+      L.circleMarker([point.latitude, point.longitude], {
+        radius: 2.5, color: '#ffffff', weight: 0.5, fillColor: '#2774d8', fillOpacity: 0.78
+      }).bindPopup(`GPS observation ${index}<br>Time: ${point.timestamp_s}`).addTo(gpsLayer);
+    }
+    if (gpsPoints.length) {
+      const first = gpsPoints[0], last = gpsPoints[gpsPoints.length - 1];
+      L.circleMarker([first.latitude, first.longitude], {
+        radius: 7, color: '#ffffff', weight: 2, fillColor: '#138a55', fillOpacity: 1
+      }).bindPopup('Trip start').addTo(gpsLayer);
+      L.circleMarker([last.latitude, last.longitude], {
+        radius: 7, color: '#ffffff', weight: 2, fillColor: '#6638b5', fillOpacity: 1
+      }).bindPopup('Trip end').addTo(gpsLayer);
+    }
+
+    const routeLayer = L.layerGroup();
+    for (const arc of result.route_geometry || []) {
+      const coords = arc.coordinates || [];
+      if (coords.length < 2) continue;
+      L.polyline(coords, {color: '#df4d3f', weight: 4, opacity: 0.95})
+        .bindPopup(`Predicted road arc ${arc.arc_id}`).addTo(routeLayer);
+    }
+
+    const overlays = {
+      'Road network': roadLayer,
+      'GPS observations': gpsLayer,
+      'Predicted route': routeLayer
+    };
+    roadLayer.addTo(map);
+    gpsLayer.addTo(map);
+    routeLayer.addTo(map);
+    layerControl = L.control.layers({'OpenStreetMap': map._pathsnapOsmLayer}, overlays, {collapsed: false}).addTo(map);
+    map._pathsnapLayers = [roadLayer, gpsLayer, routeLayer];
+
+    const boundsPoints = gpsPoints.map(p => [p.latitude, p.longitude]);
+    if (boundsPoints.length) {
+      map.fitBounds(boundsPoints, {padding: [24, 24], maxZoom: 16});
+    } else {
+      map.setView([0, 0], 2);
+    }
+    requestAnimationFrame(() => map.invalidateSize());
+  }
+
+  connectButton.addEventListener('click', loadTrips);
+  matchButton.addEventListener('click', requestRoute);
+  window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
+</script>
+</body>
+</html>
