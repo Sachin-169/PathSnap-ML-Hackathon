@@ -225,6 +225,10 @@ __marimo__/
 # Local-only hackathon inputs and platform metadata
 .DS_Store
 /hackathon_materials/
+/artifacts/demo_trips.json
+/artifacts/maps/
+/results/candidate_features.csv
+/results/candidate_features_trainable.csv
 *.track
 *.nodes
 *.arcs

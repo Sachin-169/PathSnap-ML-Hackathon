@@ -1,0 +1,32 @@
+[
+  {
+    "model":"HistGradientBoostingClassifier",
+    "objective":"5-fold GroupKFold candidate-level macro F1",
+    "trials_requested":10,
+    "trials_completed":6,
+    "baseline_cv_macro_f1":0.8691073611,
+    "baseline_cv_top1":0.7867515956,
+    "best_cv_macro_f1":0.8715285095,
+    "best_cv_top1":0.7879849629,
+    "best_params":{
+      "max_iter":200,
+      "max_leaf_nodes":34,
+      "learning_rate":0.041872266,
+      "l2_regularization":0.0004693534,
+      "min_samples_leaf":23,
+      "max_bins":255
+    },
+    "feature_columns":[
+      "distance_m",
+      "projection_fraction",
+      "road_length_m",
+      "speed_mps",
+      "time_difference_s",
+      "heading_difference",
+      "distance_to_start_m",
+      "distance_to_end_m"
+    ],
+    "training_rows":4493892,
+    "training_trips":80
+  }
+]
